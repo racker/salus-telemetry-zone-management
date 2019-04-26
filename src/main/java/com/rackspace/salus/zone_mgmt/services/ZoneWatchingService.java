@@ -55,7 +55,8 @@ public class ZoneWatchingService implements ZoneStorageListener {
         .thenAccept(watcher -> {
           log.debug("Watching expected zones");
           this.expectedZonesWatcher = watcher;
-        });
+        })
+        .join();
 
   }
 
