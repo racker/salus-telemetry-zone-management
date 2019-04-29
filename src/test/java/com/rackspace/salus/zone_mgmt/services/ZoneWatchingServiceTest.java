@@ -27,8 +27,8 @@ import com.coreos.jetcd.Watch.Watcher;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
-import com.rackspace.salus.telemetry.messaging.ZoneEnvoyOfResourceChangedEvent;
-import com.rackspace.salus.telemetry.messaging.ZoneNewResourceEvent;
+import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
+import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
 import java.util.concurrent.CompletableFuture;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -69,9 +69,7 @@ public class ZoneWatchingServiceTest {
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
         zoneStorage, kafkaTemplate, topicProperties);
 
-    final ResolvedZone resolvedZone = new ResolvedZone()
-        .setTenantId("t-1")
-        .setId("z-1");
+    final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
     zoneWatchingService.handleNewEnvoyResourceInZone(resolvedZone);
 
@@ -80,7 +78,7 @@ public class ZoneWatchingServiceTest {
         eq("test.zones.json"),
         eq("t-1:z-1"),
         eq(
-            new ZoneNewResourceEvent()
+            new NewResourceZoneEvent()
                 .setTenantId("t-1")
                 .setZoneId("z-1")
         )
@@ -96,9 +94,7 @@ public class ZoneWatchingServiceTest {
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
         zoneStorage, kafkaTemplate, topicProperties);
 
-    final ResolvedZone resolvedZone = new ResolvedZone()
-        .setTenantId("t-1")
-        .setId("z-1");
+    final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
     zoneWatchingService.handleEnvoyResourceReassignedInZone(resolvedZone, "e-1", "e-2");
 
@@ -107,7 +103,7 @@ public class ZoneWatchingServiceTest {
         eq("test.zones.json"),
         eq("t-1:z-1"),
         eq(
-            new ZoneEnvoyOfResourceChangedEvent()
+            new ReattachedResourceZoneEvent()
                 .setFromEnvoyId("e-1")
                 .setToEnvoyId("e-2")
                 .setTenantId("t-1")

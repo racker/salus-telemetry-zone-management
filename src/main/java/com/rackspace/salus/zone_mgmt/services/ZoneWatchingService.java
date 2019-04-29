@@ -22,8 +22,8 @@ import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorageListener;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
-import com.rackspace.salus.telemetry.messaging.ZoneEnvoyOfResourceChangedEvent;
-import com.rackspace.salus.telemetry.messaging.ZoneNewResourceEvent;
+import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
+import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +31,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+/**
+ * This class utilities {@link ZoneStorage} to register and react to etcd watches on the ranges
+ * of zone-related keys. It is essentially a mediator between etcd events and the production
+ * of kafka events for consumption by other microservices in Salus.
+ */
 @Service
 @Slf4j
 public class ZoneWatchingService implements ZoneStorageListener {
@@ -76,7 +81,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
     kafkaTemplate.send(
         topicProperties.getZones(),
         buildMessageKey(resolvedZone),
-        new ZoneNewResourceEvent()
+        new NewResourceZoneEvent()
             .setTenantId(resolvedZone.getTenantId())
             .setZoneId(resolvedZone.getId())
     );
@@ -98,7 +103,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
     kafkaTemplate.send(
         topicProperties.getZones(),
         buildMessageKey(resolvedZone),
-        new ZoneEnvoyOfResourceChangedEvent()
+        new ReattachedResourceZoneEvent()
             .setFromEnvoyId(fromEnvoyId)
             .setToEnvoyId(toEnvoyId)
             .setTenantId(resolvedZone.getTenantId())
