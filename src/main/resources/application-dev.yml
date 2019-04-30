@@ -1,0 +1,8 @@
+etcd:
+  url: http://localhost:2479
+server:
+  port: 8084
+logging:
+  level:
+    com.rackspace.salus.zone_mgmt: debug
+    com.rackspace.salus.telemetry.etcd: debug
