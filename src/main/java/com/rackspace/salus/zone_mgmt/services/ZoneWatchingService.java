@@ -83,14 +83,14 @@ public class ZoneWatchingService implements ZoneStorageListener {
         buildMessageKey(resolvedZone),
         new NewResourceZoneEvent()
             .setTenantId(resolvedZone.getTenantId())
-            .setZoneId(resolvedZone.getId())
+            .setZoneName(resolvedZone.getName())
     );
   }
 
   private String buildMessageKey(ResolvedZone resolvedZone) {
     return resolvedZone.isPublicZone() ?
-        resolvedZone.getId() :
-        String.join(":", resolvedZone.getTenantId(), resolvedZone.getId());
+        resolvedZone.getName() :
+        String.join(":", resolvedZone.getTenantId(), resolvedZone.getName());
   }
 
   @Override
@@ -107,7 +107,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
             .setFromEnvoyId(fromEnvoyId)
             .setToEnvoyId(toEnvoyId)
             .setTenantId(resolvedZone.getTenantId())
-            .setZoneId(resolvedZone.getId())
+            .setZoneName(resolvedZone.getName())
     );
   }
 
