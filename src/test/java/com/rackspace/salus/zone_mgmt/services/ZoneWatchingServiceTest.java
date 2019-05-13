@@ -80,7 +80,7 @@ public class ZoneWatchingServiceTest {
         eq(
             new NewResourceZoneEvent()
                 .setTenantId("t-1")
-                .setZoneId("z-1")
+                .setZoneName("z-1")
         )
     );
 
@@ -107,7 +107,7 @@ public class ZoneWatchingServiceTest {
                 .setFromEnvoyId("e-1")
                 .setToEnvoyId("e-2")
                 .setTenantId("t-1")
-                .setZoneId("z-1")
+                .setZoneName("z-1")
         )
     );
 
