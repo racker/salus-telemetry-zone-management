@@ -19,9 +19,11 @@ package com.rackspace.salus.zone_mgmt.services;
 import com.coreos.jetcd.Watch.Watcher;
 import com.coreos.jetcd.common.exception.EtcdException;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
+import com.rackspace.salus.monitor_management.web.client.ZoneApi;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorageListener;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
+import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
 import javax.annotation.PostConstruct;
@@ -43,26 +45,38 @@ public class ZoneWatchingService implements ZoneStorageListener {
   private final ZoneStorage zoneStorage;
   private final KafkaTemplate kafkaTemplate;
   private final KafkaTopicProperties topicProperties;
+  private final ZoneApi zoneApi;
   private Watcher expectedZonesWatcher;
+  private Watcher activeZonesWatcher;
+  private Watcher expiringZonesWatcher;
 
   @Autowired
   public ZoneWatchingService(ZoneStorage zoneStorage, KafkaTemplate kafkaTemplate,
-                             KafkaTopicProperties topicProperties) {
+      KafkaTopicProperties topicProperties,
+      ZoneApi zoneApi) {
     this.zoneStorage = zoneStorage;
     this.kafkaTemplate = kafkaTemplate;
     this.topicProperties = topicProperties;
+    this.zoneApi = zoneApi;
   }
 
   @PostConstruct
   public void start() {
-
     zoneStorage.watchExpectedZones(this)
+      .thenAccept(watcher -> {
+        log.debug("Watching expected zones");
+        this.expectedZonesWatcher = watcher;
+      });
+    zoneStorage.watchActiveZones(this)
+      .thenAccept(watcher -> {
+        log.debug("Watching active zones");
+        this.activeZonesWatcher = watcher;
+      });
+    zoneStorage.watchExpiringZones(this)
         .thenAccept(watcher -> {
-          log.debug("Watching expected zones");
-          this.expectedZonesWatcher = watcher;
-        })
-        .join();
-
+          log.debug("Watching expiring zones");
+          this.expiringZonesWatcher = watcher;
+        });
   }
 
   @PreDestroy
@@ -71,20 +85,14 @@ public class ZoneWatchingService implements ZoneStorageListener {
       expectedZonesWatcher.close();
       expectedZonesWatcher = null;
     }
-  }
-
-  @Override
-  public void handleNewEnvoyResourceInZone(ResolvedZone resolvedZone) {
-    log.debug("Handling new envoy-resource in zone={}", resolvedZone);
-
-    //noinspection unchecked
-    kafkaTemplate.send(
-        topicProperties.getZones(),
-        buildMessageKey(resolvedZone),
-        new NewResourceZoneEvent()
-            .setTenantId(resolvedZone.getTenantId())
-            .setZoneName(resolvedZone.getName())
-    );
+    if (activeZonesWatcher != null) {
+      activeZonesWatcher.close();
+      activeZonesWatcher = null;
+    }
+    if (expiringZonesWatcher != null) {
+      expiringZonesWatcher.close();
+      expiringZonesWatcher = null;
+    }
   }
 
   private String buildMessageKey(ResolvedZone resolvedZone) {
@@ -94,8 +102,23 @@ public class ZoneWatchingService implements ZoneStorageListener {
   }
 
   @Override
-  public void handleEnvoyResourceReassignedInZone(ResolvedZone resolvedZone, String fromEnvoyId,
-                                                  String toEnvoyId) {
+  public void handleNewEnvoyResourceInZone(ResolvedZone resolvedZone, String resourceId) {
+    log.debug("Handling new envoy-resource in zone={} resource={}", resolvedZone, resourceId);
+
+    //noinspection unchecked
+    kafkaTemplate.send(
+        topicProperties.getZones(),
+        buildMessageKey(resolvedZone),
+        new NewResourceZoneEvent()
+            .setResourceId(resourceId)
+            .setTenantId(resolvedZone.getTenantId())
+            .setZoneName(resolvedZone.getName())
+    );
+  }
+
+  @Override
+  public void handleEnvoyResourceReassignedInZone(ResolvedZone resolvedZone, String resourceId,
+                                                  String fromEnvoyId, String toEnvoyId) {
     log.debug("Handling new envoy-resource reassigned zone={} from={} to={}",
         resolvedZone, fromEnvoyId, toEnvoyId);
 
@@ -106,6 +129,40 @@ public class ZoneWatchingService implements ZoneStorageListener {
         new ReattachedResourceZoneEvent()
             .setFromEnvoyId(fromEnvoyId)
             .setToEnvoyId(toEnvoyId)
+            .setResourceId(resourceId)
+            .setTenantId(resolvedZone.getTenantId())
+            .setZoneName(resolvedZone.getName())
+    );
+  }
+
+  @Override
+  public void handleActiveEnvoyConnection(ResolvedZone resolvedZone, String resourceId) {
+    log.debug("Handling new active envoy connection for zone={} resource={}", resolvedZone, resourceId);
+    // look for timer and remove it
+    zoneStorage.removeExpiringEntry(resolvedZone, resourceId);
+  }
+
+  @Override
+  public void handleActiveEnvoyDisconnection(ResolvedZone resolvedZone, String resourceId, String envoyId) {
+    log.debug("Handling active envoy disconnection for zone={} resource={}", resolvedZone, resourceId);
+
+    // figure out how to add caching around this incase the request fails
+    // and to limit the load on the api at times where everything disconnects
+    long pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
+        .getPollerTimeout();
+    zoneStorage.createExpiringEntry(resolvedZone, resourceId, envoyId, pollerTimeout);
+  }
+
+  @Override
+  public void handleExpiredEnvoy(ResolvedZone resolvedZone, String resourceId, String envoyId) {
+    log.debug("Handling expired envoy for zone={} resource={} envoy={}", resolvedZone, resourceId, envoyId);
+    zoneStorage.removeExpectedEntry(resolvedZone, resourceId);
+    // send event to monitor management to reassign monitors.
+    kafkaTemplate.send(
+        topicProperties.getZones(),
+        buildMessageKey(resolvedZone),
+        new ExpiredResourceZoneEvent()
+            .setEnvoyId(envoyId)
             .setTenantId(resolvedZone.getTenantId())
             .setZoneName(resolvedZone.getName())
     );

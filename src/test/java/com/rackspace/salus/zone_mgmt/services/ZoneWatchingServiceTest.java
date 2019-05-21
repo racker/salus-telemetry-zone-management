@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import com.coreos.jetcd.Watch.Watcher;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
+import com.rackspace.salus.monitor_management.web.client.ZoneApi;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
@@ -46,20 +47,29 @@ public class ZoneWatchingServiceTest {
   ZoneStorage zoneStorage;
 
   @Mock
+  ZoneApi zoneApi;
+
+  @Mock
   Watcher watcher;
 
   @Test
   public void testStart() {
     when(zoneStorage.watchExpectedZones(any()))
         .thenReturn(CompletableFuture.completedFuture(watcher));
+    when(zoneStorage.watchActiveZones(any()))
+        .thenReturn(CompletableFuture.completedFuture(watcher));
+    when(zoneStorage.watchExpiringZones((any())))
+        .thenReturn(CompletableFuture.completedFuture(watcher));
 
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi);
 
     zoneWatchingService.start();
 
     verify(zoneStorage).watchExpectedZones(same(zoneWatchingService));
+    verify(zoneStorage).watchActiveZones(same(zoneWatchingService));
+    verify(zoneStorage).watchExpiringZones(same(zoneWatchingService));
   }
 
   @Test
@@ -67,11 +77,11 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
-    zoneWatchingService.handleNewEnvoyResourceInZone(resolvedZone);
+    zoneWatchingService.handleNewEnvoyResourceInZone(resolvedZone, "r-1");
 
     //noinspection unchecked
     verify(kafkaTemplate).send(
@@ -92,11 +102,12 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
-    zoneWatchingService.handleEnvoyResourceReassignedInZone(resolvedZone, "e-1", "e-2");
+    zoneWatchingService.handleEnvoyResourceReassignedInZone(
+        resolvedZone, "r-1", "e-1", "e-2");
 
     //noinspection unchecked
     verify(kafkaTemplate).send(
@@ -106,6 +117,7 @@ public class ZoneWatchingServiceTest {
             new ReattachedResourceZoneEvent()
                 .setFromEnvoyId("e-1")
                 .setToEnvoyId("e-2")
+                .setResourceId("r-1")
                 .setTenantId("t-1")
                 .setZoneName("z-1")
         )
