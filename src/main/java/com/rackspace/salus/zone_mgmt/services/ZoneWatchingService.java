@@ -145,9 +145,6 @@ public class ZoneWatchingService implements ZoneStorageListener {
   @Override
   public void handleActiveEnvoyDisconnection(ResolvedZone resolvedZone, String resourceId, String envoyId) {
     log.debug("Handling active envoy disconnection for zone={} resource={}", resolvedZone, resourceId);
-
-    // figure out how to add caching around this incase the request fails
-    // and to limit the load on the api at times where everything disconnects
     long pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
         .getPollerTimeout();
     zoneStorage.createExpiringEntry(resolvedZone, resourceId, envoyId, pollerTimeout);
