@@ -21,7 +21,6 @@ import com.coreos.jetcd.common.exception.EtcdException;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.monitor_management.web.client.ZoneApi;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
-import com.rackspace.salus.telemetry.etcd.services.ZoneStorageListener;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
@@ -46,6 +45,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
   private final KafkaTemplate kafkaTemplate;
   private final KafkaTopicProperties topicProperties;
   private final ZoneApi zoneApi;
+  private final WatcherUtils watcherUtils;
   private Watcher expectedZonesWatcher;
   private Watcher activeZonesWatcher;
   private Watcher expiringZonesWatcher;
@@ -53,26 +53,27 @@ public class ZoneWatchingService implements ZoneStorageListener {
   @Autowired
   public ZoneWatchingService(ZoneStorage zoneStorage, KafkaTemplate kafkaTemplate,
       KafkaTopicProperties topicProperties,
-      ZoneApi zoneApi) {
+      ZoneApi zoneApi, WatcherUtils watcherUtils) {
     this.zoneStorage = zoneStorage;
     this.kafkaTemplate = kafkaTemplate;
     this.topicProperties = topicProperties;
     this.zoneApi = zoneApi;
+    this.watcherUtils = watcherUtils;
   }
 
   @PostConstruct
   public void start() {
-    zoneStorage.watchExpectedZones(this)
+    watcherUtils.watchExpectedZones(this)
       .thenAccept(watcher -> {
         log.debug("Watching expected zones");
         this.expectedZonesWatcher = watcher;
       });
-    zoneStorage.watchActiveZones(this)
+    watcherUtils.watchActiveZones(this)
       .thenAccept(watcher -> {
         log.debug("Watching active zones");
         this.activeZonesWatcher = watcher;
       });
-    zoneStorage.watchExpiringZones(this)
+    watcherUtils.watchExpiringZones(this)
         .thenAccept(watcher -> {
           log.debug("Watching expiring zones");
           this.expiringZonesWatcher = watcher;
@@ -100,6 +101,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
         resolvedZone.getName() :
         String.join(":", resolvedZone.getTenantId(), resolvedZone.getName());
   }
+
 
   @Override
   public void handleNewEnvoyResourceInZone(ResolvedZone resolvedZone, String resourceId) {
