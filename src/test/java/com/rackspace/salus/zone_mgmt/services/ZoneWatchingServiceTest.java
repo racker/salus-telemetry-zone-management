@@ -283,6 +283,8 @@ public class ZoneWatchingServiceTest {
 
   @Test
   public void testNewExpectedEnvoyResource() throws ExecutionException, InterruptedException {
+    // This method handles all the new expected envoy actions but is also utilized to set up other
+    // tests so it has been split out.
     registerAndWatchExpected(createPrivateZone("t-1", "z-1"), "r-1", "e-1");
   }
 

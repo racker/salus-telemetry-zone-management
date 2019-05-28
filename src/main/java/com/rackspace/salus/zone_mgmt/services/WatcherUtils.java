@@ -59,16 +59,37 @@ public class WatcherUtils {
         new ExpectedZoneEventProcessor(listener, zoneStorage));
   }
 
+  /**
+   * Sets up asynchronous watching of the active zone key range.
+   *
+   * @param listener the listener that will be invoked when changes related to active zones occur
+   * @return a future that is completed when the watcher is setup and being processed. The contained
+   * {@link Watcher} is provided only for testing/informational purposes.
+   */
   public CompletableFuture<Watcher> watchActiveZones(ZoneStorageListener listener) {
     return watchZones(TRACKING_KEY_ZONE_ACTIVE, PREFIX_ZONE_ACTIVE, listener,
         new ActiveZoneEventProcessor(listener, zoneStorage));
   }
 
+  /**
+   * Sets up asynchronous watching of the expiring zone key range.
+   *
+   * @param listener the listener that will be invoked when changes related to expiring zones occur
+   * @return a future that is completed when the watcher is setup and being processed. The contained
+   * {@link Watcher} is provided only for testing/informational purposes.
+   */
   public CompletableFuture<Watcher> watchExpiringZones(ZoneStorageListener listener) {
     return watchZones(TRACKING_KEY_ZONE_EXPIRING, PREFIX_ZONE_EXPIRING, listener,
         new ExpiringZoneEventProcessor(listener, zoneStorage));
   }
 
+  /**
+   * Sets up asynchronous watching of the provided key range.
+   *
+   * @param listener the listener that will be invoked when changes related to the key range occur
+   * @return a future that is completed when the watcher is setup and being processed. The contained
+   * {@link Watcher} is provided only for testing/informational purposes.
+   */
   private CompletableFuture<Watcher> watchZones(String trackingKey, String watchPrefixStr,
       ZoneStorageListener listener, ZoneEventProcessor watchEventHandler) {
     Assert.notNull(listener, "A ZoneStorageListener is required");
