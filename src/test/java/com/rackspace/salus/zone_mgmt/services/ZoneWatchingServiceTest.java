@@ -90,9 +90,6 @@ public class ZoneWatchingServiceTest {
   @Mock
   ZoneApi zoneApi;
 
-  @Mock
-  Watcher watcher;
-
   private Client client;
 
   @Before
@@ -115,23 +112,16 @@ public class ZoneWatchingServiceTest {
 
   @Test
   public void testStart() {
-    watcherUtils = Mockito.mock(WatcherUtils.class);
-    when(watcherUtils.watchExpectedZones(any()))
-        .thenReturn(CompletableFuture.completedFuture(watcher));
-    when(watcherUtils.watchActiveZones(any()))
-        .thenReturn(CompletableFuture.completedFuture(watcher));
-    when(watcherUtils.watchExpiringZones((any())))
-        .thenReturn(CompletableFuture.completedFuture(watcher));
-
+    WatcherUtils watcherUtilsSpy = Mockito.spy(watcherUtils);
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtilsSpy);
 
     zoneWatchingService.start();
 
-    verify(watcherUtils).watchExpectedZones(same(zoneWatchingService));
-    verify(watcherUtils).watchActiveZones(same(zoneWatchingService));
-    verify(watcherUtils).watchExpiringZones(same(zoneWatchingService));
+    verify(watcherUtilsSpy).watchExpectedZones(same(zoneWatchingService));
+    verify(watcherUtilsSpy).watchActiveZones(same(zoneWatchingService));
+    verify(watcherUtilsSpy).watchExpiringZones(same(zoneWatchingService));
   }
 
   @Test
