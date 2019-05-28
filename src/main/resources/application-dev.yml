@@ -1,5 +1,7 @@
 etcd:
   url: http://localhost:2479
+services:
+  monitorManagementUrl: http://localhost:8089
 server:
   port: 8084
 logging:
