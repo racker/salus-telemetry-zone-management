@@ -39,11 +39,11 @@ import org.springframework.util.Assert;
 
 @Slf4j
 @Service
-public class WatcherUtils {
+public class EtcdWatchConnector {
 
   private final ZoneStorage zoneStorage;
 
-  public WatcherUtils(ZoneStorage zoneStorage) {
+  public EtcdWatchConnector(ZoneStorage zoneStorage) {
     this.zoneStorage = zoneStorage;
   }
 

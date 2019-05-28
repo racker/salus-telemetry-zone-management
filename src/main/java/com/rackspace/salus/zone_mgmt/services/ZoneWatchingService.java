@@ -45,7 +45,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
   private final KafkaTemplate kafkaTemplate;
   private final KafkaTopicProperties topicProperties;
   private final ZoneApi zoneApi;
-  private final WatcherUtils watcherUtils;
+  private final EtcdWatchConnector etcdWatchConnector;
   private Watcher expectedZonesWatcher;
   private Watcher activeZonesWatcher;
   private Watcher expiringZonesWatcher;
@@ -53,27 +53,27 @@ public class ZoneWatchingService implements ZoneStorageListener {
   @Autowired
   public ZoneWatchingService(ZoneStorage zoneStorage, KafkaTemplate kafkaTemplate,
       KafkaTopicProperties topicProperties,
-      ZoneApi zoneApi, WatcherUtils watcherUtils) {
+      ZoneApi zoneApi, EtcdWatchConnector etcdWatchConnector) {
     this.zoneStorage = zoneStorage;
     this.kafkaTemplate = kafkaTemplate;
     this.topicProperties = topicProperties;
     this.zoneApi = zoneApi;
-    this.watcherUtils = watcherUtils;
+    this.etcdWatchConnector = etcdWatchConnector;
   }
 
   @PostConstruct
   public void start() {
-    watcherUtils.watchExpectedZones(this)
+    etcdWatchConnector.watchExpectedZones(this)
       .thenAccept(watcher -> {
         log.debug("Watching expected zones");
         this.expectedZonesWatcher = watcher;
       });
-    watcherUtils.watchActiveZones(this)
+    etcdWatchConnector.watchActiveZones(this)
       .thenAccept(watcher -> {
         log.debug("Watching active zones");
         this.activeZonesWatcher = watcher;
       });
-    watcherUtils.watchExpiringZones(this)
+    etcdWatchConnector.watchExpiringZones(this)
         .thenAccept(watcher -> {
           log.debug("Watching expiring zones");
           this.expiringZonesWatcher = watcher;

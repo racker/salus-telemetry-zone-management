@@ -85,7 +85,7 @@ public class ZoneWatchingServiceTest {
 
   private ZoneStorage zoneStorage;
 
-  private WatcherUtils watcherUtils;
+  private EtcdWatchConnector etcdWatchConnector;
 
   @Mock
   ZoneApi zoneApi;
@@ -101,7 +101,7 @@ public class ZoneWatchingServiceTest {
 
     zoneStorage = new ZoneStorage(client, envoyLeaseTracking);
 
-    watcherUtils = new WatcherUtils(zoneStorage);
+    etcdWatchConnector = new EtcdWatchConnector(zoneStorage);
   }
 
   @After
@@ -112,16 +112,16 @@ public class ZoneWatchingServiceTest {
 
   @Test
   public void testStart() {
-    WatcherUtils watcherUtilsSpy = Mockito.spy(watcherUtils);
+    EtcdWatchConnector etcdWatchConnectorSpy = Mockito.spy(etcdWatchConnector);
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtilsSpy);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnectorSpy);
 
     zoneWatchingService.start();
 
-    verify(watcherUtilsSpy).watchExpectedZones(same(zoneWatchingService));
-    verify(watcherUtilsSpy).watchActiveZones(same(zoneWatchingService));
-    verify(watcherUtilsSpy).watchExpiringZones(same(zoneWatchingService));
+    verify(etcdWatchConnectorSpy).watchExpectedZones(same(zoneWatchingService));
+    verify(etcdWatchConnectorSpy).watchActiveZones(same(zoneWatchingService));
+    verify(etcdWatchConnectorSpy).watchExpiringZones(same(zoneWatchingService));
   }
 
   @Test
@@ -129,7 +129,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
@@ -155,7 +155,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
@@ -185,7 +185,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
 
     final ResolvedZone zone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
@@ -211,7 +211,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
 
     String tenantId = RandomStringUtils.randomAlphanumeric(10);
     String zoneName = RandomStringUtils.randomAlphanumeric(10);
@@ -247,7 +247,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
 
     String tenantId = RandomStringUtils.randomAlphanumeric(10);
     String zoneName = RandomStringUtils.randomAlphanumeric(10);
@@ -325,7 +325,7 @@ public class ZoneWatchingServiceTest {
 
     final ZoneStorageListener listener = Mockito.mock(ZoneStorageListener.class);
 
-    try (Watcher ignored = watcherUtils.watchExpectedZones(listener).get()) {
+    try (Watcher ignored = etcdWatchConnector.watchExpectedZones(listener).get()) {
 
       verify(listener, timeout(5000)).handleNewEnvoyResourceInZone(resolvedZone, "r-2");
 
@@ -347,7 +347,7 @@ public class ZoneWatchingServiceTest {
 
     final ZoneStorageListener listener = Mockito.mock(ZoneStorageListener.class);
 
-    try (Watcher ignored = watcherUtils.watchExpectedZones(listener).get()) {
+    try (Watcher ignored = etcdWatchConnector.watchExpectedZones(listener).get()) {
 
       final long leaseId = grantLease();
 
@@ -378,7 +378,7 @@ public class ZoneWatchingServiceTest {
 
     final ZoneStorageListener listener = Mockito.mock(ZoneStorageListener.class);
 
-    try (Watcher ignored = watcherUtils.watchExpectedZones(listener).get()) {
+    try (Watcher ignored = etcdWatchConnector.watchExpectedZones(listener).get()) {
 
       final long leaseId = grantLease();
 
