@@ -141,7 +141,7 @@ public class ZoneWatchingService implements ZoneStorageListener {
   public void handleActiveEnvoyConnection(ResolvedZone resolvedZone, String resourceId) {
     log.debug("Handling new active envoy connection for zone={} resource={}", resolvedZone, resourceId);
     // look for timer and remove it
-    zoneStorage.removeExpiringEntry(resolvedZone, resourceId);
+    zoneStorage.removeExpiringEntry(resolvedZone, resourceId).join();
   }
 
   @Override
@@ -149,13 +149,13 @@ public class ZoneWatchingService implements ZoneStorageListener {
     log.debug("Handling active envoy disconnection for zone={} resource={}", resolvedZone, resourceId);
     long pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
         .getPollerTimeout();
-    zoneStorage.createExpiringEntry(resolvedZone, resourceId, envoyId, pollerTimeout);
+    zoneStorage.createExpiringEntry(resolvedZone, resourceId, envoyId, pollerTimeout).join();
   }
 
   @Override
   public void handleExpiredEnvoy(ResolvedZone resolvedZone, String resourceId, String envoyId) {
     log.debug("Handling expired envoy for zone={} resource={} envoy={}", resolvedZone, resourceId, envoyId);
-    zoneStorage.removeExpectedEntry(resolvedZone, resourceId);
+    zoneStorage.removeExpectedEntry(resolvedZone, resourceId).join();
     // send event to monitor management to reassign monitors.
     kafkaTemplate.send(
         topicProperties.getZones(),

@@ -19,7 +19,6 @@ package com.rackspace.salus.zone_mgmt.handler;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PTN_ZONE_EXPIRING;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_EXPIRING;
 
-import com.coreos.jetcd.Watch.Watcher;
 import com.coreos.jetcd.common.exception.ClosedClientException;
 import com.coreos.jetcd.common.exception.ClosedWatcherException;
 import com.coreos.jetcd.data.ByteSequence;

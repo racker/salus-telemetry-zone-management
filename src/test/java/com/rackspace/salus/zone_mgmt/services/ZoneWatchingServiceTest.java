@@ -18,9 +18,12 @@ package com.rackspace.salus.zone_mgmt.services;
 
 import static com.rackspace.salus.telemetry.etcd.types.ResolvedZone.createPrivateZone;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.ArgumentMatchers.same;
@@ -31,6 +34,10 @@ import static org.mockito.Mockito.when;
 
 import com.coreos.jetcd.data.ByteSequence;
 import com.coreos.jetcd.kv.GetResponse;
+import com.coreos.jetcd.options.LeaseOption;
+import com.rackspace.salus.monitor_management.web.model.ZoneDTO;
+import com.rackspace.salus.telemetry.etcd.services.EnvoyLeaseTracking;
+import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import io.etcd.jetcd.launcher.junit.EtcdClusterResource;
 import com.coreos.jetcd.Client;
 import com.coreos.jetcd.Watch.Watcher;
@@ -43,6 +50,7 @@ import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
 import java.net.URI;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -56,8 +64,11 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.test.annotation.DirtiesContext;
+import org.testcontainers.shaded.org.apache.commons.lang.RandomStringUtils;
 
 @RunWith(MockitoJUnitRunner.class)
+@DirtiesContext
 public class ZoneWatchingServiceTest {
 
   @Rule
@@ -68,6 +79,9 @@ public class ZoneWatchingServiceTest {
 
   @Mock
   KafkaTemplate kafkaTemplate;
+
+  @Mock
+  private EnvoyLeaseTracking envoyLeaseTracking;
 
   private ZoneStorage zoneStorage;
 
@@ -88,7 +102,7 @@ public class ZoneWatchingServiceTest {
         .collect(Collectors.toList());
     client = com.coreos.jetcd.Client.builder().endpoints(endpoints).build();
 
-    zoneStorage = new ZoneStorage(client, null);
+    zoneStorage = new ZoneStorage(client, envoyLeaseTracking);
 
     watcherUtils = new WatcherUtils(zoneStorage);
   }
@@ -121,7 +135,7 @@ public class ZoneWatchingServiceTest {
   }
 
   @Test
-  public void handleNewEnvoyResourceInZone() {
+  public void testHandleNewEnvoyResourceInZone() {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
@@ -147,7 +161,7 @@ public class ZoneWatchingServiceTest {
   }
 
   @Test
-  public void handleEnvoyResourceReassignedInZone() {
+  public void testHandleEnvoyResourceReassignedInZone() {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
@@ -177,8 +191,109 @@ public class ZoneWatchingServiceTest {
   }
 
   @Test
+  public void testHandleActiveEnvoyConnection() throws Exception{
+    KafkaTopicProperties topicProperties = new KafkaTopicProperties();
+    topicProperties.setZones("test.zones.json");
+    final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+
+    final ResolvedZone zone = ResolvedZone.createPrivateZone("t-1", "z-1");
+
+    String resourceId = RandomStringUtils.randomAlphabetic(10);
+    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
+        zone.getTenantId(), zone.getName(), resourceId);
+
+    client.getKVClient().put(
+        ByteSequence.fromString(expiringKey),
+        ByteSequence.fromString("e-1")).join();
+
+    verifyEtcdKeyExists(expiringKey, "e-1");
+
+    // When a new active connection is seen it should remove any expiring key
+    zoneWatchingService.handleActiveEnvoyConnection(zone, resourceId);
+
+    verifyEtcdKeyDoesNotExist(expiringKey);
+
+  }
+
+  @Test
+  public void testHandleActiveEnvoyDisconnection() throws Exception {
+    KafkaTopicProperties topicProperties = new KafkaTopicProperties();
+    topicProperties.setZones("test.zones.json");
+    final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+
+    String tenantId = RandomStringUtils.randomAlphanumeric(10);
+    String zoneName = RandomStringUtils.randomAlphanumeric(10);
+    String resourceId = RandomStringUtils.randomAlphanumeric(10);
+    String envoyId = RandomStringUtils.randomAlphanumeric(10);
+    long timeout = new Random().nextInt(1000) + 30L;
+
+    final ResolvedZone zone = ResolvedZone.createPrivateZone(tenantId, zoneName);
+
+    when(zoneApi.getByZoneName(anyString(), anyString()))
+        .thenReturn(new ZoneDTO().setPollerTimeout(timeout));
+
+    final long leaseId = grantLease(timeout);
+
+    when(envoyLeaseTracking.grant(anyString(), anyLong()))
+        .thenReturn(CompletableFuture.completedFuture(leaseId));
+
+    zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
+
+    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
+        zone.getTenantId(), zone.getName(), resourceId);
+
+    GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
+
+    long foundLeaseId = resp.getKvs().get(0).getLease();
+
+    long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
+    assertThat(ttl, equalTo(timeout));
+  }
+
+  @Test
+  public void testHandleExpiredEnvoy() throws Exception {
+    KafkaTopicProperties topicProperties = new KafkaTopicProperties();
+    topicProperties.setZones("test.zones.json");
+    final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
+        zoneStorage, kafkaTemplate, topicProperties, zoneApi, watcherUtils);
+
+    String tenantId = RandomStringUtils.randomAlphanumeric(10);
+    String zoneName = RandomStringUtils.randomAlphanumeric(10);
+    String resourceId = RandomStringUtils.randomAlphanumeric(10);
+    String envoyId = RandomStringUtils.randomAlphanumeric(10);
+
+    final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone(tenantId, zoneName);
+
+    registerAndWatchExpected(resolvedZone, resourceId, envoyId);
+
+    String expectedKey = String.format("/zones/expected/%s/%s/%s", tenantId, zoneName, resourceId);
+    verifyEtcdKeyExists(expectedKey, envoyId);
+
+    zoneWatchingService.handleExpiredEnvoy(resolvedZone, resourceId, envoyId);
+
+    verifyEtcdKeyDoesNotExist(expectedKey);
+
+    //noinspection unchecked
+    verify(kafkaTemplate).send(
+        eq("test.zones.json"),
+        eq(String.format("%s:%s", tenantId, zoneName)),
+        eq(
+            new ExpiredResourceZoneEvent()
+                .setEnvoyId(envoyId)
+                .setTenantId(tenantId)
+                .setZoneName(zoneName)
+        )
+    );
+
+    verifyNoMoreInteractions(kafkaTemplate);
+
+  }
+
+  @Test
   public void testNewExpectedEnvoyResource() throws ExecutionException, InterruptedException {
-    registerAndWatchExpected(createPrivateZone("t-1", "z-1"), "r-1", "t-1");
+    registerAndWatchExpected(createPrivateZone("t-1", "z-1"), "r-1", "e-1");
   }
 
   /**
@@ -191,7 +306,7 @@ public class ZoneWatchingServiceTest {
 
     final ResolvedZone resolvedZone = createPrivateZone(tenant, "z-1");
 
-    registerAndWatchExpected(resolvedZone, "r-1", tenant);
+    registerAndWatchExpected(resolvedZone, "r-1", "e-1");
 
     // one envoy-resource has registered, now register another prior to re-watching
 
@@ -266,7 +381,7 @@ public class ZoneWatchingServiceTest {
 
   }
 
-  private void registerAndWatchExpected(ResolvedZone resolvedZone, String resourceId, String tenant)
+  private void registerAndWatchExpected(ResolvedZone resolvedZone, String resourceId, String envoyId)
       throws InterruptedException, ExecutionException {
 
     final ZoneStorageListener listener = Mockito.mock(ZoneStorageListener.class);
@@ -275,7 +390,7 @@ public class ZoneWatchingServiceTest {
 
       final long leaseId = grantLease();
 
-      zoneStorage.registerEnvoyInZone(resolvedZone, "e-1", resourceId, leaseId)
+      zoneStorage.registerEnvoyInZone(resolvedZone, envoyId, resourceId, leaseId)
           .join();
 
       verify(listener, timeout(5000)).handleNewEnvoyResourceInZone(resolvedZone, resourceId);
@@ -291,14 +406,29 @@ public class ZoneWatchingServiceTest {
     }
   }
 
+  private GetResponse verifyEtcdKeyExists(String key, String value) throws Exception {
+    GetResponse resp = client.getKVClient().get(
+        ByteSequence.fromString(key)).get();
+    assertThat(resp.getKvs(), hasSize(1));
+    if (value != null) {
+      assertThat(resp.getKvs().get(0).getValue().toStringUtf8(), equalTo(value));
+    }
+    return resp;
+  }
+
+  private void verifyEtcdKeyDoesNotExist(String key) throws Exception {
+    GetResponse resp = client.getKVClient().get(
+        ByteSequence.fromString(key)).get();
+
+    assertThat(resp.getKvs(), hasSize(0));
+  }
+
   private long grantLease() {
     return grantLease(10000);
   }
 
   private long grantLease(long ttl) {
     final LeaseGrantResponse leaseGrant = client.getLeaseClient().grant(ttl).join();
-    final long leaseId = leaseGrant.getID();
-
-    return leaseId;
+    return leaseGrant.getID();
   }
 }
