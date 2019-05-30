@@ -1,6 +1,6 @@
 substitutions:
   _GCS_CACHE_BUCKET: salus-cache
-  _SALUS_PROJECT: salus-telemetry-zone-management
+  _SALUS_PROJECT: salus-telemetry-zone-watcher
 
 steps:
 
