@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_watcher.services;
+package com.rackspace.salus.zw.services;
 
 import com.coreos.jetcd.common.exception.EtcdException;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;

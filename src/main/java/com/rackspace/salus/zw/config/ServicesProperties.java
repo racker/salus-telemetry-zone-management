@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_watcher.config;
+package com.rackspace.salus.zw.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

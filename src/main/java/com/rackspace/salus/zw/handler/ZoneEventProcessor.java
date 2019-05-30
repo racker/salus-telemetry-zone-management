@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_watcher.handler;
+package com.rackspace.salus.zw.handler;
 
 import com.coreos.jetcd.Watch.Watcher;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
-import com.rackspace.salus.zone_watcher.services.ZoneStorageListener;
+import com.rackspace.salus.zw.services.ZoneStorageListener;
 
 public abstract class ZoneEventProcessor implements Runnable {
   Watcher zoneWatcher;
