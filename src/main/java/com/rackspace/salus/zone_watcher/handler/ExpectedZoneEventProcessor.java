@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt.handler;
+package com.rackspace.salus.zone_watcher.handler;
 
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PTN_ZONE_EXPECTED;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_EXPECTED;
 
-import com.coreos.jetcd.Watch.Watcher;
 import com.coreos.jetcd.common.exception.ClosedClientException;
 import com.coreos.jetcd.common.exception.ClosedWatcherException;
 import com.coreos.jetcd.data.ByteSequence;
@@ -27,7 +26,7 @@ import com.coreos.jetcd.watch.WatchEvent;
 import com.coreos.jetcd.watch.WatchEvent.EventType;
 import com.coreos.jetcd.watch.WatchResponse;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
-import com.rackspace.salus.zone_mgmt.services.ZoneStorageListener;
+import com.rackspace.salus.zone_watcher.services.ZoneStorageListener;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import java.util.regex.Matcher;
 import lombok.extern.slf4j.Slf4j;

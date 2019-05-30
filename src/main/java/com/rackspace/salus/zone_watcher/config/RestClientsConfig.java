@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt.config;
+package com.rackspace.salus.zone_watcher.config;
 
 import com.rackspace.salus.monitor_management.web.client.ZoneApi;
 import com.rackspace.salus.monitor_management.web.client.ZoneApiClient;

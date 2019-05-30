@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt;
+package com.rackspace.salus.zone_watcher;
 
 import com.rackspace.salus.common.messaging.EnableSalusKafkaMessaging;
 import com.rackspace.salus.telemetry.etcd.EnableEtcd;

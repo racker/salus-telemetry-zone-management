@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt.services;
+package com.rackspace.salus.zone_watcher.services;
 
 import com.coreos.jetcd.Watch.Watcher;
 import com.coreos.jetcd.common.exception.EtcdException;

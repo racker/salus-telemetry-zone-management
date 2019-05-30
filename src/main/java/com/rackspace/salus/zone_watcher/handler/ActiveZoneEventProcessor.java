@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt.handler;
+package com.rackspace.salus.zone_watcher.handler;
 
-import static com.rackspace.salus.telemetry.etcd.types.Keys.PTN_ZONE_EXPIRING;
-import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_EXPIRING;
+import static com.rackspace.salus.telemetry.etcd.types.Keys.PTN_ZONE_ACTIVE;
+import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_ACTIVE;
 
 import com.coreos.jetcd.common.exception.ClosedClientException;
 import com.coreos.jetcd.common.exception.ClosedWatcherException;
@@ -25,25 +25,26 @@ import com.coreos.jetcd.data.ByteSequence;
 import com.coreos.jetcd.watch.WatchEvent;
 import com.coreos.jetcd.watch.WatchResponse;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
-import com.rackspace.salus.zone_mgmt.services.ZoneStorageListener;
+import com.rackspace.salus.zone_watcher.services.ZoneStorageListener;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * This is used to handle any etcd watcher events that get triggered relating
- * to the expiring zone key prefix.
+ * to the active zone key prefix.
  */
 @Slf4j
-public class ExpiringZoneEventProcessor extends ZoneEventProcessor {
+public class ActiveZoneEventProcessor extends ZoneEventProcessor {
 
-  public ExpiringZoneEventProcessor(ZoneStorageListener listener, ZoneStorage zoneStorage) {
+  public ActiveZoneEventProcessor(ZoneStorageListener listener, ZoneStorage zoneStorage) {
     super(listener, zoneStorage);
   }
 
   @Override
   public void run() {
-    final ByteSequence trackingKey = ByteSequence.fromString(TRACKING_KEY_ZONE_EXPIRING);
+    final ByteSequence trackingKey = ByteSequence.fromString(TRACKING_KEY_ZONE_ACTIVE);
 
     while (zoneStorage.isRunning()) {
       try {
@@ -53,10 +54,10 @@ public class ExpiringZoneEventProcessor extends ZoneEventProcessor {
           for (WatchEvent event : response.getEvents()) {
 
             final String keyStr = event.getKeyValue().getKey().toStringUtf8();
-            final Matcher matcher = PTN_ZONE_EXPIRING.matcher(keyStr);
+            final Matcher matcher = PTN_ZONE_ACTIVE.matcher(keyStr);
 
             if (!matcher.matches()) {
-              log.warn("Unable to parse expiring event key={}", keyStr);
+              log.warn("Unable to parse active event key={}", keyStr);
               continue;
             }
 
@@ -68,18 +69,23 @@ public class ExpiringZoneEventProcessor extends ZoneEventProcessor {
 
             switch (event.getEventType()) {
               case PUT:
-                // no action needed
-                break;
-              case DELETE:
-                // if the lease isn't expired, it means the poller came back up and
-                // the expiring entry was removed by the listener before the entry could time out.
-                if (zoneStorage.isLeaseExpired(event)) {
-                  listener.handleExpiredEnvoy(
-                      resolvedZone, resourceId, event.getPrevKV().getValue().toStringUtf8());
+                // Only act on this when a new key is created
+                // not when the bound monitor count is updated for the key.
+                if (event.getPrevKV().getVersion() == 0) {
+                  listener.handleActiveEnvoyConnection(resolvedZone, resourceId);
                 }
                 break;
+              case DELETE:
+                Optional<String> envoyId = zoneStorage.getEnvoyIdForResource(resolvedZone, resourceId).join();
+                if (!envoyId.isPresent()) {
+                  log.warn("No expected envoyId found for disconnected resource {}", resourceId);
+                  break;
+                }
+                // create an expiring entry with the poller timeout.
+                listener.handleActiveEnvoyDisconnection(resolvedZone, resourceId, envoyId.get());
+                break;
               case UNRECOGNIZED:
-                log.warn("Unknown expiring watcher event seen by zone watcher");
+                log.warn("Unknown active watcher event seen by zone watcher");
                 break;
             }
           }
@@ -94,6 +100,7 @@ public class ExpiringZoneEventProcessor extends ZoneEventProcessor {
         return;
       }
     }
+
     listener.handleExpectedZoneWatcherClosed(null);
   }
 }

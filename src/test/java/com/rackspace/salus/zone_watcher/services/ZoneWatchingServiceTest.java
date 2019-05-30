@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt.services;
+package com.rackspace.salus.zone_watcher.services;
 
 import static com.rackspace.salus.telemetry.etcd.types.ResolvedZone.createPrivateZone;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;

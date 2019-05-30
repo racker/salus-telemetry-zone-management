@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt.services;
+package com.rackspace.salus.zone_watcher.services;
 
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PREFIX_ZONE_ACTIVE;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PREFIX_ZONE_EXPECTED;
@@ -28,10 +28,10 @@ import com.coreos.jetcd.data.ByteSequence;
 import com.coreos.jetcd.options.WatchOption;
 import com.coreos.jetcd.options.WatchOption.Builder;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
-import com.rackspace.salus.zone_mgmt.handler.ActiveZoneEventProcessor;
-import com.rackspace.salus.zone_mgmt.handler.ExpectedZoneEventProcessor;
-import com.rackspace.salus.zone_mgmt.handler.ExpiringZoneEventProcessor;
-import com.rackspace.salus.zone_mgmt.handler.ZoneEventProcessor;
+import com.rackspace.salus.zone_watcher.handler.ActiveZoneEventProcessor;
+import com.rackspace.salus.zone_watcher.handler.ExpectedZoneEventProcessor;
+import com.rackspace.salus.zone_watcher.handler.ExpiringZoneEventProcessor;
+import com.rackspace.salus.zone_watcher.handler.ZoneEventProcessor;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
