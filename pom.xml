@@ -26,7 +26,7 @@
     <relativePath>../salus-app-base</relativePath>
   </parent>
 
-  <artifactId>salus-telemetry-zone-management</artifactId>
+  <artifactId>salus-telemetry-zone-watcher</artifactId>
   <version>0.0.1-SNAPSHOT</version>
 
   <properties>

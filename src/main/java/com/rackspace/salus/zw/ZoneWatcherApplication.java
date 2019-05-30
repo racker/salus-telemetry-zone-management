@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.rackspace.salus.zone_mgmt;
+package com.rackspace.salus.zw;
 
 import com.rackspace.salus.common.messaging.EnableSalusKafkaMessaging;
 import com.rackspace.salus.telemetry.etcd.EnableEtcd;
@@ -24,9 +24,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 @EnableSalusKafkaMessaging
 @EnableEtcd
-public class ZoneManagementApplication {
+public class ZoneWatcherApplication {
 
   public static void main(String[] args) {
-    SpringApplication.run(ZoneManagementApplication.class, args);
+    SpringApplication.run(ZoneWatcherApplication.class, args);
   }
 }
