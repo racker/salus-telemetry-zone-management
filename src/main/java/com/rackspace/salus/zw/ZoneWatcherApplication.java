@@ -17,6 +17,7 @@
 package com.rackspace.salus.zw;
 
 import com.rackspace.salus.common.messaging.EnableSalusKafkaMessaging;
+import com.rackspace.salus.common.util.DumpConfigProperties;
 import com.rackspace.salus.telemetry.etcd.EnableEtcd;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -27,6 +28,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class ZoneWatcherApplication {
 
   public static void main(String[] args) {
+    DumpConfigProperties.process(args);
+
     SpringApplication.run(ZoneWatcherApplication.class, args);
   }
 }
