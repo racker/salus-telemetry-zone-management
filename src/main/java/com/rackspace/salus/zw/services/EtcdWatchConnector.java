@@ -23,15 +23,16 @@ import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_AC
 import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_EXPECTED;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_EXPIRING;
 
-import com.coreos.jetcd.Watch.Watcher;
-import com.coreos.jetcd.data.ByteSequence;
-import com.coreos.jetcd.options.WatchOption;
-import com.coreos.jetcd.options.WatchOption.Builder;
+import com.rackspace.salus.telemetry.etcd.EtcdUtils;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.zw.handler.ActiveZoneEventProcessor;
 import com.rackspace.salus.zw.handler.ExpectedZoneEventProcessor;
 import com.rackspace.salus.zw.handler.ExpiringZoneEventProcessor;
 import com.rackspace.salus.zw.handler.ZoneEventProcessor;
+import io.etcd.jetcd.ByteSequence;
+import io.etcd.jetcd.Watch.Watcher;
+import io.etcd.jetcd.options.WatchOption;
+import io.etcd.jetcd.options.WatchOption.Builder;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -100,7 +101,7 @@ public class EtcdWatchConnector {
             .thenApply(watchRevision -> {
               log.debug("Watching {} from revision {}", watchPrefixStr, watchRevision);
 
-              final ByteSequence watchPrefix = ByteSequence
+              final ByteSequence watchPrefix = EtcdUtils
                   .fromString(watchPrefixStr);
 
               final Builder watchOptionBuilder = WatchOption.newBuilder()
@@ -110,15 +111,11 @@ public class EtcdWatchConnector {
 
               final Watcher zoneWatcher = zoneStorage.getWatchClient().watch(
                   watchPrefix,
-                  watchOptionBuilder.build()
+                  watchOptionBuilder.build(),
+                  watchEventHandler
               );
 
               watchEventHandler.setZoneWatcher(zoneWatcher);
-
-              new Thread(
-                  watchEventHandler,
-                  "zoneWatcher")
-                  .start();
 
               return zoneWatcher;
             });

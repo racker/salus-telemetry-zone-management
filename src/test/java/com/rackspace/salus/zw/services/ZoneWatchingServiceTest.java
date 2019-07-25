@@ -16,6 +16,7 @@
 
 package com.rackspace.salus.zw.services;
 
+import static com.rackspace.salus.telemetry.etcd.EtcdUtils.fromString;
 import static com.rackspace.salus.telemetry.etcd.types.ResolvedZone.createPrivateZone;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -31,28 +32,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.coreos.jetcd.data.ByteSequence;
-import com.coreos.jetcd.kv.GetResponse;
-import com.coreos.jetcd.options.LeaseOption;
-import com.rackspace.salus.monitor_management.web.model.ZoneDTO;
-import com.rackspace.salus.telemetry.etcd.services.EnvoyLeaseTracking;
-import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
-import io.etcd.jetcd.launcher.junit.EtcdClusterResource;
-import com.coreos.jetcd.Client;
-import com.coreos.jetcd.Watch.Watcher;
-import com.coreos.jetcd.lease.LeaseGrantResponse;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.monitor_management.web.client.ZoneApi;
+import com.rackspace.salus.monitor_management.web.model.ZoneDTO;
+import com.rackspace.salus.telemetry.etcd.services.EnvoyLeaseTracking;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
+import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
-import java.net.URI;
-import java.util.List;
+import io.etcd.jetcd.Client;
+import io.etcd.jetcd.Watch.Watcher;
+import io.etcd.jetcd.kv.GetResponse;
+import io.etcd.jetcd.launcher.junit.EtcdClusterResource;
+import io.etcd.jetcd.lease.LeaseGrantResponse;
+import io.etcd.jetcd.options.LeaseOption;
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -93,10 +91,9 @@ public class ZoneWatchingServiceTest {
 
   @Before
   public void setUp() {
-    final List<String> endpoints = etcd.cluster().getClientEndpoints().stream()
-        .map(URI::toString)
-        .collect(Collectors.toList());
-    client = com.coreos.jetcd.Client.builder().endpoints(endpoints).build();
+    client = io.etcd.jetcd.Client.builder().endpoints(
+        etcd.cluster().getClientEndpoints()
+    ).build();
 
     zoneStorage = new ZoneStorage(client, envoyLeaseTracking);
 
@@ -193,8 +190,8 @@ public class ZoneWatchingServiceTest {
         zone.getTenantId(), zone.getName(), resourceId);
 
     client.getKVClient().put(
-        ByteSequence.fromString(expiringKey),
-        ByteSequence.fromString("e-1")).join();
+        fromString(expiringKey),
+        fromString("e-1")).join();
 
     verifyEtcdKeyExists(expiringKey, "e-1");
 
@@ -307,14 +304,14 @@ public class ZoneWatchingServiceTest {
 
     // sanity check KV content
     final GetResponse r2resp = client.getKVClient().get(
-        ByteSequence.fromString(String.format("/zones/expected/%s/z-1/r-2",
+        fromString(String.format("/zones/expected/%s/z-1/r-2",
             tenant
         ))
     ).get();
     assertThat(r2resp.getCount(), equalTo(1L));
 
     final GetResponse trackingResp = client.getKVClient().get(
-        ByteSequence.fromString("/tracking/zones/expected")
+        fromString("/tracking/zones/expected")
     ).get();
     assertThat(trackingResp.getCount(), equalTo(1L));
     // ...and the relative revisions of the tracking key vs the registration while not watching
@@ -399,17 +396,17 @@ public class ZoneWatchingServiceTest {
 
   private GetResponse verifyEtcdKeyExists(String key, String value) throws Exception {
     GetResponse resp = client.getKVClient().get(
-        ByteSequence.fromString(key)).get();
+        fromString(key)).get();
     assertThat(resp.getKvs(), hasSize(1));
     if (value != null) {
-      assertThat(resp.getKvs().get(0).getValue().toStringUtf8(), equalTo(value));
+      assertThat(resp.getKvs().get(0).getValue().toString(StandardCharsets.UTF_8), equalTo(value));
     }
     return resp;
   }
 
   private void verifyEtcdKeyDoesNotExist(String key) throws Exception {
     GetResponse resp = client.getKVClient().get(
-        ByteSequence.fromString(key)).get();
+        fromString(key)).get();
 
     assertThat(resp.getKvs(), hasSize(0));
   }

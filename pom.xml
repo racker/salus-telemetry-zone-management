@@ -29,6 +29,10 @@
   <artifactId>salus-telemetry-zone-watcher</artifactId>
   <version>0.0.1-SNAPSHOT</version>
 
+  <properties>
+    <jetcd.version>0.3.0</jetcd.version>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.springframework.kafka</groupId>
@@ -109,9 +113,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>com.github.mxsm</groupId>
+      <groupId>io.etcd</groupId>
       <artifactId>jetcd-launcher</artifactId>
-      <version>0.3.6</version>
+      <version>${jetcd.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

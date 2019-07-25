@@ -16,8 +16,6 @@
 
 package com.rackspace.salus.zw.services;
 
-import com.coreos.jetcd.Watch.Watcher;
-import com.coreos.jetcd.common.exception.EtcdException;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.monitor_management.web.client.ZoneApi;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
@@ -25,6 +23,8 @@ import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
+import io.etcd.jetcd.Watch.Watcher;
+import io.etcd.jetcd.common.exception.EtcdException;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;

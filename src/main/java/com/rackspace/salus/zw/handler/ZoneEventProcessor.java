@@ -16,11 +16,13 @@
 
 package com.rackspace.salus.zw.handler;
 
-import com.coreos.jetcd.Watch.Watcher;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.zw.services.ZoneStorageListener;
+import io.etcd.jetcd.Watch.Watcher;
+import io.etcd.jetcd.watch.WatchResponse;
+import java.util.function.Consumer;
 
-public abstract class ZoneEventProcessor implements Runnable {
+public abstract class ZoneEventProcessor implements Consumer<WatchResponse> {
   Watcher zoneWatcher;
   ZoneStorageListener listener;
   ZoneStorage zoneStorage;
