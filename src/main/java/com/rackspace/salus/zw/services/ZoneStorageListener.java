@@ -16,8 +16,8 @@
 
 package com.rackspace.salus.zw.services;
 
-import com.coreos.jetcd.common.exception.EtcdException;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
+import io.etcd.jetcd.common.exception.EtcdException;
 
 public interface ZoneStorageListener {
 

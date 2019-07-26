@@ -19,14 +19,14 @@ package com.rackspace.salus.zw.handler;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PTN_ZONE_ACTIVE;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.TRACKING_KEY_ZONE_ACTIVE;
 
-import com.coreos.jetcd.common.exception.ClosedClientException;
-import com.coreos.jetcd.common.exception.ClosedWatcherException;
-import com.coreos.jetcd.data.ByteSequence;
-import com.coreos.jetcd.watch.WatchEvent;
-import com.coreos.jetcd.watch.WatchResponse;
+import com.rackspace.salus.telemetry.etcd.EtcdUtils;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
-import com.rackspace.salus.zw.services.ZoneStorageListener;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
+import com.rackspace.salus.zw.services.ZoneStorageListener;
+import io.etcd.jetcd.ByteSequence;
+import io.etcd.jetcd.watch.WatchEvent;
+import io.etcd.jetcd.watch.WatchResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import lombok.extern.slf4j.Slf4j;
@@ -37,70 +37,55 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class ActiveZoneEventProcessor extends ZoneEventProcessor {
+  final ByteSequence trackingKey = EtcdUtils.fromString(TRACKING_KEY_ZONE_ACTIVE);
 
   public ActiveZoneEventProcessor(ZoneStorageListener listener, ZoneStorage zoneStorage) {
     super(listener, zoneStorage);
   }
 
   @Override
-  public void run() {
-    final ByteSequence trackingKey = ByteSequence.fromString(TRACKING_KEY_ZONE_ACTIVE);
+  public void accept(WatchResponse response) {
+    try {
+      for (WatchEvent event : response.getEvents()) {
 
-    while (zoneStorage.isRunning()) {
-      try {
-        final WatchResponse response = zoneWatcher.listen();
+        final String keyStr = event.getKeyValue().getKey().toString(StandardCharsets.UTF_8);
+        final Matcher matcher = PTN_ZONE_ACTIVE.matcher(keyStr);
 
-        try {
-          for (WatchEvent event : response.getEvents()) {
-
-            final String keyStr = event.getKeyValue().getKey().toStringUtf8();
-            final Matcher matcher = PTN_ZONE_ACTIVE.matcher(keyStr);
-
-            if (!matcher.matches()) {
-              log.warn("Unable to parse active event key={}", keyStr);
-              continue;
-            }
-
-            String resourceId = matcher.group("resourceId");
-            final ResolvedZone resolvedZone = ResolvedZone.fromKeyParts(
-                matcher.group("tenant"),
-                matcher.group("zoneName")
-            );
-
-            switch (event.getEventType()) {
-              case PUT:
-                // Only act on this when a new key is created
-                // not when the bound monitor count is updated for the key.
-                if (event.getPrevKV().getVersion() == 0) {
-                  listener.handleActiveEnvoyConnection(resolvedZone, resourceId);
-                }
-                break;
-              case DELETE:
-                Optional<String> envoyId = zoneStorage.getEnvoyIdForResource(resolvedZone, resourceId).join();
-                if (!envoyId.isPresent()) {
-                  log.warn("No expected envoyId found for disconnected resource {}", resourceId);
-                  break;
-                }
-                // create an expiring entry with the poller timeout.
-                listener.handleActiveEnvoyDisconnection(resolvedZone, resourceId, envoyId.get());
-                break;
-              case UNRECOGNIZED:
-                log.warn("Unknown active watcher event seen by zone watcher");
-                break;
-            }
-          }
-        } finally {
-          zoneStorage.incrementTrackingKeyVersion(trackingKey);
+        if (!matcher.matches()) {
+          log.warn("Unable to parse active event key={}", keyStr);
+          continue;
         }
-      } catch (InterruptedException e) {
-        log.warn("Interrupted while watching zone expected", e);
-      } catch (ClosedWatcherException | ClosedClientException e) {
-        log.debug("Stopping processing due to closure", e);
-        listener.handleExpectedZoneWatcherClosed(e);
-        return;
-      }
-    }
 
-    listener.handleExpectedZoneWatcherClosed(null);
+        String resourceId = matcher.group("resourceId");
+        final ResolvedZone resolvedZone = ResolvedZone.fromKeyParts(
+            matcher.group("tenant"),
+            matcher.group("zoneName")
+        );
+
+        switch (event.getEventType()) {
+          case PUT:
+            // Only act on this when a new key is created
+            // not when the bound monitor count is updated for the key.
+            if (event.getPrevKV().getVersion() == 0) {
+              listener.handleActiveEnvoyConnection(resolvedZone, resourceId);
+            }
+            break;
+          case DELETE:
+            Optional<String> envoyId = zoneStorage.getEnvoyIdForResource(resolvedZone, resourceId).join();
+            if (!envoyId.isPresent()) {
+              log.warn("No expected envoyId found for disconnected resource {}", resourceId);
+              break;
+            }
+            // create an expiring entry with the poller timeout.
+            listener.handleActiveEnvoyDisconnection(resolvedZone, resourceId, envoyId.get());
+            break;
+          case UNRECOGNIZED:
+            log.warn("Unknown active watcher event seen by zone watcher");
+            break;
+        }
+      }
+    } finally {
+      zoneStorage.incrementTrackingKeyVersion(trackingKey);
+    }
   }
 }
