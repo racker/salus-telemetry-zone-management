@@ -16,6 +16,7 @@
 
 package com.rackspace.salus.zw.services;
 
+import static com.rackspace.salus.telemetry.etcd.EtcdUtils.EXIT_CODE_ETCD_FAILED;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PREFIX_ZONE_ACTIVE;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PREFIX_ZONE_EXPECTED;
 import static com.rackspace.salus.telemetry.etcd.types.Keys.PREFIX_ZONE_EXPIRING;
@@ -112,12 +113,19 @@ public class EtcdWatchConnector {
               final Watcher zoneWatcher = zoneStorage.getWatchClient().watch(
                   watchPrefix,
                   watchOptionBuilder.build(),
-                  watchEventHandler
+                  watchEventHandler,
+                  throwable -> handleWatchError(watchPrefixStr, throwable)
               );
 
               watchEventHandler.setZoneWatcher(zoneWatcher);
 
               return zoneWatcher;
             });
+  }
+
+  private void handleWatchError(String prefix, Throwable throwable) {
+    log.error("Error during watch of {}", prefix, throwable);
+    // Spring will gracefully shutdown via shutdown hook
+    System.exit(EXIT_CODE_ETCD_FAILED);
   }
 }
