@@ -25,7 +25,6 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -296,6 +295,10 @@ public class ZoneWatchingServiceTest {
 
     registerAndWatchExpected(resolvedZone, "r-1", "e-1");
 
+    // WORKAROUND until a release after 0.3.0 includes this change: https://github.com/etcd-io/jetcd/commit/d42722530d86579231905512c70fe3521532dcf3
+    tearDown();
+    setUp();
+
     // one envoy-resource has registered, now register another prior to re-watching
 
     final long leaseId = grantLease();
@@ -326,10 +329,6 @@ public class ZoneWatchingServiceTest {
       verify(listener, timeout(5000)).handleNewEnvoyResourceInZone(resolvedZone, "r-2");
 
     } finally {
-      // watcher has been closed
-
-      verify(listener, timeout(5000)).handleExpectedZoneWatcherClosed(notNull());
-
       verifyNoMoreInteractions(listener);
     }
 
@@ -359,11 +358,6 @@ public class ZoneWatchingServiceTest {
           resolvedZone, "r-1", "e-1", "e-2");
 
     } finally {
-      // watcher has been closed
-
-      // it is expected that watcher is closed with exception when closed prior to stopping the component
-      verify(listener, timeout(5000)).handleExpectedZoneWatcherClosed(notNull());
-
       verifyNoMoreInteractions(listener);
     }
 
@@ -385,11 +379,6 @@ public class ZoneWatchingServiceTest {
 
 
     } finally {
-      // watcher has been closed due to it implementing AutoCloseable
-
-      // it is expected that watcher is closed with exception when closed prior to stopping the component
-      verify(listener, timeout(5000)).handleExpectedZoneWatcherClosed(notNull());
-
       verifyNoMoreInteractions(listener);
     }
   }

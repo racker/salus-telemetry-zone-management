@@ -17,13 +17,10 @@
 package com.rackspace.salus.zw.services;
 
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
-import io.etcd.jetcd.common.exception.EtcdException;
 
 public interface ZoneStorageListener {
 
   void handleNewEnvoyResourceInZone(ResolvedZone resolvedZone, String resourceId);
-
-  void handleExpectedZoneWatcherClosed(EtcdException e);
 
   void handleEnvoyResourceReassignedInZone(ResolvedZone resolvedZone, String resourceId, String prevEnvoyId, String newEnvoyId);
 

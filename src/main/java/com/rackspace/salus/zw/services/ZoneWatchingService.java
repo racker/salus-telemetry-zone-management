@@ -24,7 +24,6 @@ import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
 import io.etcd.jetcd.Watch.Watcher;
-import io.etcd.jetcd.common.exception.EtcdException;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -167,9 +166,4 @@ public class ZoneWatchingService implements ZoneStorageListener {
     );
   }
 
-  @Override
-  public void handleExpectedZoneWatcherClosed(EtcdException e) {
-    // this is normal during application shutdown
-    log.debug("Observed closure while watching expected zones: {}", e.getMessage());
-  }
 }
