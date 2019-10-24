@@ -2,6 +2,8 @@ spring:
   kafka:
     producer:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  application:
+    name: salus-telemetry-zone-watcher
 management:
   metrics:
     export:
