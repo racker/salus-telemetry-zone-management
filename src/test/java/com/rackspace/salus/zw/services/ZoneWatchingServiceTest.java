@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,9 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -46,6 +48,8 @@ import io.etcd.jetcd.kv.GetResponse;
 import io.etcd.jetcd.launcher.junit.EtcdClusterResource;
 import io.etcd.jetcd.lease.LeaseGrantResponse;
 import io.etcd.jetcd.options.LeaseOption;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -86,6 +90,8 @@ public class ZoneWatchingServiceTest {
   @Mock
   ZoneApi zoneApi;
 
+  private MeterRegistry meterRegistry = new SimpleMeterRegistry();
+
   private Client client;
 
   @Before
@@ -94,7 +100,7 @@ public class ZoneWatchingServiceTest {
         etcd.cluster().getClientEndpoints()
     ).build();
 
-    zoneStorage = new ZoneStorage(client, envoyLeaseTracking);
+    zoneStorage = spy(new ZoneStorage(client, envoyLeaseTracking));
 
     etcdWatchConnector = new EtcdWatchConnector(zoneStorage);
   }
@@ -110,7 +116,7 @@ public class ZoneWatchingServiceTest {
     EtcdWatchConnector etcdWatchConnectorSpy = Mockito.spy(etcdWatchConnector);
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnectorSpy);
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnectorSpy);
 
     zoneWatchingService.start();
 
@@ -124,7 +130,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
@@ -150,7 +156,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
@@ -180,7 +186,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     final ResolvedZone zone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
@@ -202,11 +208,11 @@ public class ZoneWatchingServiceTest {
   }
 
   @Test
-  public void testHandleActiveEnvoyDisconnection() throws Exception {
+  public void testHandleActiveEnvoyDisconnection_privateZone() throws Exception {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     String tenantId = RandomStringUtils.randomAlphanumeric(10);
     String zoneName = RandomStringUtils.randomAlphanumeric(10);
@@ -227,7 +233,7 @@ public class ZoneWatchingServiceTest {
     zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
 
     String expiringKey = String.format("/zones/expiring/%s/%s/%s",
-        zone.getTenantId(), zone.getName(), resourceId);
+        zone.getTenantForKey(), zone.getZoneNameForKey(), resourceId);
 
     GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
 
@@ -235,6 +241,86 @@ public class ZoneWatchingServiceTest {
 
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
+
+    verify(zoneApi).getByZoneName(tenantId, zoneName);
+  }
+
+  @Test
+  public void testHandleActiveEnvoyDisconnection_publicZone() throws Exception {
+    KafkaTopicProperties topicProperties = new KafkaTopicProperties();
+    topicProperties.setZones("test.zones.json");
+    final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
+
+    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10);
+    String resourceId = RandomStringUtils.randomAlphanumeric(10);
+    String envoyId = RandomStringUtils.randomAlphanumeric(10);
+    long timeout = new Random().nextInt(1000) + 30L;
+
+    final ResolvedZone zone = ResolvedZone.createPublicZone(zoneName);
+
+    when(zoneApi.getByZoneName(nullable(String.class), anyString()))
+        .thenReturn(new ZoneDTO().setPollerTimeout(timeout));
+
+    final long leaseId = grantLease(timeout);
+
+    when(envoyLeaseTracking.grant(anyString(), anyLong()))
+        .thenReturn(CompletableFuture.completedFuture(leaseId));
+
+    zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
+
+    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
+        zone.getTenantForKey(), zone.getZoneNameForKey(), resourceId);
+
+    GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
+
+    long foundLeaseId = resp.getKvs().get(0).getLease();
+
+    long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
+    assertThat(ttl, equalTo(timeout));
+
+    verify(zoneApi).getByZoneName(null, zoneName);
+
+    verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, timeout);
+  }
+
+  @Test
+  public void testHandleActiveEnvoyDisconnection_publicZone_failedPollerTimeoutRequest() throws Exception {
+    KafkaTopicProperties topicProperties = new KafkaTopicProperties();
+    topicProperties.setZones("test.zones.json");
+    final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
+
+    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10);
+    String resourceId = RandomStringUtils.randomAlphanumeric(10);
+    String envoyId = RandomStringUtils.randomAlphanumeric(10);
+    long timeout = new Random().nextInt(1000) + 30L;
+
+    final ResolvedZone zone = ResolvedZone.createPublicZone(zoneName);
+
+    when(zoneApi.getByZoneName(nullable(String.class), anyString()))
+        .thenThrow(new IllegalArgumentException("bad request"));
+
+    final long leaseId = grantLease(timeout);
+
+    when(envoyLeaseTracking.grant(anyString(), anyLong()))
+        .thenReturn(CompletableFuture.completedFuture(leaseId));
+
+    zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
+
+    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
+        zone.getTenantForKey(), zone.getZoneNameForKey(), resourceId);
+
+    GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
+
+    long foundLeaseId = resp.getKvs().get(0).getLease();
+
+    long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
+    assertThat(ttl, equalTo(timeout));
+
+    verify(zoneApi).getByZoneName(null, zoneName);
+
+    verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, ZoneWatchingService.FALLBACK_POLLER_TIMEOUT);
   }
 
   @Test
@@ -242,7 +328,7 @@ public class ZoneWatchingServiceTest {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
-        zoneStorage, kafkaTemplate, topicProperties, zoneApi, etcdWatchConnector);
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     String tenantId = RandomStringUtils.randomAlphanumeric(10);
     String zoneName = RandomStringUtils.randomAlphanumeric(10);

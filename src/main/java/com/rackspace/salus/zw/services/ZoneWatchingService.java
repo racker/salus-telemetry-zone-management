@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
 import io.etcd.jetcd.Watch.Watcher;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -40,17 +42,21 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ZoneWatchingService implements ZoneStorageListener {
 
+  static final long FALLBACK_POLLER_TIMEOUT = 300;
+
   private final ZoneStorage zoneStorage;
   private final KafkaTemplate kafkaTemplate;
   private final KafkaTopicProperties topicProperties;
   private final ZoneApi zoneApi;
   private final EtcdWatchConnector etcdWatchConnector;
+  private final Counter retrievePollerTimeoutErrors;
   private Watcher expectedZonesWatcher;
   private Watcher activeZonesWatcher;
   private Watcher expiringZonesWatcher;
 
   @Autowired
   public ZoneWatchingService(ZoneStorage zoneStorage, KafkaTemplate kafkaTemplate,
+      MeterRegistry meterRegistry,
       KafkaTopicProperties topicProperties,
       ZoneApi zoneApi, EtcdWatchConnector etcdWatchConnector) {
     this.zoneStorage = zoneStorage;
@@ -58,6 +64,9 @@ public class ZoneWatchingService implements ZoneStorageListener {
     this.topicProperties = topicProperties;
     this.zoneApi = zoneApi;
     this.etcdWatchConnector = etcdWatchConnector;
+
+    retrievePollerTimeoutErrors = meterRegistry
+        .counter("errors", "operation", "retrievePollerTimeout");
   }
 
   @PostConstruct
@@ -146,8 +155,17 @@ public class ZoneWatchingService implements ZoneStorageListener {
   @Override
   public void handleActiveEnvoyDisconnection(ResolvedZone resolvedZone, String resourceId, String envoyId) {
     log.debug("Handling active envoy disconnection for zone={} resource={}", resolvedZone, resourceId);
-    long pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
-        .getPollerTimeout();
+
+    long pollerTimeout;
+    try {
+      pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
+          .getPollerTimeout();
+    } catch (IllegalArgumentException e) {
+      log.warn("Call to get poller timeout by zone name failed; using fallback timeout", e);
+      retrievePollerTimeoutErrors.increment();
+      pollerTimeout = FALLBACK_POLLER_TIMEOUT;
+    }
+
     zoneStorage.createExpiringEntry(resolvedZone, resourceId, envoyId, pollerTimeout).join();
   }
 
