@@ -36,8 +36,10 @@ import static org.mockito.Mockito.when;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.monitor_management.web.client.ZoneApi;
 import com.rackspace.salus.monitor_management.web.model.ZoneDTO;
+import com.rackspace.salus.telemetry.etcd.EtcdUtils;
 import com.rackspace.salus.telemetry.etcd.services.EnvoyLeaseTracking;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
+import com.rackspace.salus.telemetry.etcd.types.Keys;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
@@ -191,8 +193,10 @@ public class ZoneWatchingServiceTest {
     final ResolvedZone zone = ResolvedZone.createPrivateZone("t-1", "z-1");
 
     String resourceId = RandomStringUtils.randomAlphabetic(10);
-    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
-        zone.getTenantId(), zone.getName(), resourceId);
+    String expiringKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPIRING,
+        zone.getTenantId(),
+        zone.getName(),
+        resourceId).getBytes());
 
     client.getKVClient().put(
         fromString(expiringKey),
@@ -232,17 +236,19 @@ public class ZoneWatchingServiceTest {
 
     zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
 
-    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
-        zone.getTenantForKey(), zone.getZoneNameForKey(), resourceId);
+    String expiringKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPIRING,
+        zone.getTenantId(),
+        zone.getName(),
+        resourceId).getBytes());
 
-    GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
+    GetResponse resp = verifyEtcdKeyExists(expiringKey.toLowerCase(), envoyId);
 
     long foundLeaseId = resp.getKvs().get(0).getLease();
 
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
 
-    verify(zoneApi).getByZoneName(tenantId, zoneName);
+    verify(zoneApi).getByZoneName(tenantId.toLowerCase(), zoneName.toLowerCase());
   }
 
   @Test
@@ -269,8 +275,10 @@ public class ZoneWatchingServiceTest {
 
     zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
 
-    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
-        zone.getTenantForKey(), zone.getZoneNameForKey(), resourceId);
+    String expiringKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPIRING,
+        zone.getTenantForKey(),
+        zone.getZoneNameForKey(),
+        resourceId).getBytes());
 
     GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
 
@@ -279,7 +287,7 @@ public class ZoneWatchingServiceTest {
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
 
-    verify(zoneApi).getByZoneName(null, zoneName);
+    verify(zoneApi).getByZoneName(null, zoneName.toLowerCase());
 
     verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, timeout);
   }
@@ -308,8 +316,10 @@ public class ZoneWatchingServiceTest {
 
     zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
 
-    String expiringKey = String.format("/zones/expiring/%s/%s/%s",
-        zone.getTenantForKey(), zone.getZoneNameForKey(), resourceId);
+    String expiringKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPIRING,
+        zone.getTenantForKey(),
+        zone.getZoneNameForKey(),
+        resourceId).getBytes());
 
     GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
 
@@ -318,7 +328,7 @@ public class ZoneWatchingServiceTest {
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
 
-    verify(zoneApi).getByZoneName(null, zoneName);
+    verify(zoneApi).getByZoneName(null, zoneName.toLowerCase());
 
     verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, ZoneWatchingService.FALLBACK_POLLER_TIMEOUT);
   }
@@ -337,10 +347,13 @@ public class ZoneWatchingServiceTest {
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone(tenantId, zoneName);
 
-    registerAndWatchExpected(resolvedZone, resourceId, envoyId);
+    registerAndWatchExpected(resolvedZone, resourceId.toLowerCase(), envoyId.toLowerCase());
 
-    String expectedKey = String.format("/zones/expected/%s/%s/%s", tenantId, zoneName, resourceId);
-    verifyEtcdKeyExists(expectedKey, envoyId);
+    String expectedKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPECTED,
+        tenantId,
+        zoneName,
+        resourceId).getBytes());
+    verifyEtcdKeyExists(expectedKey, envoyId.toLowerCase());
 
     zoneWatchingService.handleExpiredEnvoy(resolvedZone, resourceId, envoyId);
 
@@ -349,12 +362,12 @@ public class ZoneWatchingServiceTest {
     //noinspection unchecked
     verify(kafkaTemplate).send(
         eq("test.zones.json"),
-        eq(String.format("%s:%s", tenantId, zoneName)),
+        eq(String.format("%s:%s", tenantId.toLowerCase(), zoneName.toLowerCase())),
         eq(
             new ExpiredResourceZoneEvent()
                 .setEnvoyId(envoyId)
-                .setTenantId(tenantId)
-                .setZoneName(zoneName)
+                .setTenantId(tenantId.toLowerCase())
+                .setZoneName(zoneName.toLowerCase())
         )
     );
 
@@ -393,9 +406,10 @@ public class ZoneWatchingServiceTest {
 
     // sanity check KV content
     final GetResponse r2resp = client.getKVClient().get(
-        fromString(String.format("/zones/expected/%s/z-1/r-2",
-            tenant
-        ))
+        fromString(new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPECTED,
+            tenant,
+            "z-1",
+            "r-2").getBytes()))
     ).get();
     assertThat(r2resp.getCount(), equalTo(1L));
 
@@ -481,7 +495,7 @@ public class ZoneWatchingServiceTest {
 
   private void verifyEtcdKeyDoesNotExist(String key) throws Exception {
     GetResponse resp = client.getKVClient().get(
-        fromString(key)).get();
+        fromString(key.toLowerCase())).get();
 
     assertThat(resp.getKvs(), hasSize(0));
   }
