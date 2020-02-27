@@ -219,7 +219,7 @@ public class ZoneWatchingServiceTest {
         zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     String tenantId = RandomStringUtils.randomAlphanumeric(10);
-    String zoneName = RandomStringUtils.randomAlphanumeric(10);
+    String zoneName = RandomStringUtils.randomAlphanumeric(10).toLowerCase();
     String resourceId = RandomStringUtils.randomAlphanumeric(10);
     String envoyId = RandomStringUtils.randomAlphanumeric(10);
     long timeout = new Random().nextInt(1000) + 30L;
@@ -258,7 +258,7 @@ public class ZoneWatchingServiceTest {
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
         zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
-    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10);
+    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
     String resourceId = RandomStringUtils.randomAlphanumeric(10);
     String envoyId = RandomStringUtils.randomAlphanumeric(10);
     long timeout = new Random().nextInt(1000) + 30L;
@@ -299,7 +299,7 @@ public class ZoneWatchingServiceTest {
     final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
         zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
-    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10);
+    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
     String resourceId = RandomStringUtils.randomAlphanumeric(10);
     String envoyId = RandomStringUtils.randomAlphanumeric(10);
     long timeout = new Random().nextInt(1000) + 30L;
@@ -341,19 +341,19 @@ public class ZoneWatchingServiceTest {
         zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
 
     String tenantId = RandomStringUtils.randomAlphanumeric(10);
-    String zoneName = RandomStringUtils.randomAlphanumeric(10);
+    String zoneName = RandomStringUtils.randomAlphanumeric(10).toLowerCase();
     String resourceId = RandomStringUtils.randomAlphanumeric(10);
     String envoyId = RandomStringUtils.randomAlphanumeric(10);
 
     final ResolvedZone resolvedZone = ResolvedZone.createPrivateZone(tenantId, zoneName);
 
-    registerAndWatchExpected(resolvedZone, resourceId.toLowerCase(), envoyId.toLowerCase());
+    registerAndWatchExpected(resolvedZone, resourceId.toLowerCase(), envoyId);
 
     String expectedKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPECTED,
         tenantId,
         zoneName,
         resourceId).getBytes());
-    verifyEtcdKeyExists(expectedKey, envoyId.toLowerCase());
+    verifyEtcdKeyExists(expectedKey, envoyId);
 
     zoneWatchingService.handleExpiredEnvoy(resolvedZone, resourceId, envoyId);
 
