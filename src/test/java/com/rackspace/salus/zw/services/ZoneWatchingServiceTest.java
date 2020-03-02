@@ -248,7 +248,7 @@ public class ZoneWatchingServiceTest {
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
 
-    verify(zoneApi).getByZoneName(tenantId.toLowerCase(), zoneName.toLowerCase());
+    verify(zoneApi).getByZoneName(tenantId.toLowerCase(), zoneName);
   }
 
   @Test
@@ -287,7 +287,7 @@ public class ZoneWatchingServiceTest {
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
 
-    verify(zoneApi).getByZoneName(null, zoneName.toLowerCase());
+    verify(zoneApi).getByZoneName(null, zoneName);
 
     verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, timeout);
   }
@@ -328,7 +328,7 @@ public class ZoneWatchingServiceTest {
     long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
     assertThat(ttl, equalTo(timeout));
 
-    verify(zoneApi).getByZoneName(null, zoneName.toLowerCase());
+    verify(zoneApi).getByZoneName(null, zoneName);
 
     verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, ZoneWatchingService.FALLBACK_POLLER_TIMEOUT);
   }
@@ -367,7 +367,7 @@ public class ZoneWatchingServiceTest {
             new ExpiredResourceZoneEvent()
                 .setEnvoyId(envoyId)
                 .setTenantId(tenantId.toLowerCase())
-                .setZoneName(zoneName.toLowerCase())
+                .setZoneName(zoneName)
         )
     );
 
