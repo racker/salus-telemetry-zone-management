@@ -42,6 +42,10 @@ public class ExpiringZoneEventProcessor extends ZoneEventProcessor {
     super(listener, zoneStorage);
   }
 
+  /*
+  tenantId and resourceId are being deserialized from the etcd key.
+  Since the etcd key is being lowercase'ed the values may be a different case than what is actually being stored in MySQL
+   */
   @Override
   public void accept(WatchResponse response) {
     try {
