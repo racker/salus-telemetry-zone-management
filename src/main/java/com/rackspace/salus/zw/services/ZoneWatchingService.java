@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ZoneWatchingService implements ZoneStorageListener {
 
+  static final long NULL_ZONE_POLLER_TIMEOUT = 30;
   static final long FALLBACK_POLLER_TIMEOUT = 300;
 
   private final ZoneStorage zoneStorage;
@@ -160,6 +161,10 @@ public class ZoneWatchingService implements ZoneStorageListener {
     try {
       pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
           .getPollerTimeout();
+    } catch (NullPointerException npe) {
+      log.debug("Envoy disconnected from zone that does not exist anymore {}", resolvedZone);
+      retrievePollerTimeoutErrors.increment();
+      pollerTimeout = NULL_ZONE_POLLER_TIMEOUT;
     } catch (IllegalArgumentException e) {
       log.warn("Call to get poller timeout by zone name failed; using fallback timeout", e);
       retrievePollerTimeoutErrors.increment();
