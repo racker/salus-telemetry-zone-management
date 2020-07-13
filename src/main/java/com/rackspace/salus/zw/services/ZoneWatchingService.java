@@ -18,6 +18,7 @@ package com.rackspace.salus.zw.services;
 
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.monitor_management.web.client.ZoneApi;
+import com.rackspace.salus.monitor_management.web.model.ZoneDTO;
 import com.rackspace.salus.telemetry.etcd.services.ZoneStorage;
 import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
@@ -159,12 +160,14 @@ public class ZoneWatchingService implements ZoneStorageListener {
 
     long pollerTimeout;
     try {
-      pollerTimeout = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName())
-          .getPollerTimeout();
-    } catch (NullPointerException npe) {
-      log.debug("Envoy disconnected from zone that does not exist anymore {}", resolvedZone);
-      retrievePollerTimeoutErrors.increment();
-      pollerTimeout = NULL_ZONE_POLLER_TIMEOUT;
+      ZoneDTO zone = zoneApi.getByZoneName(resolvedZone.getTenantId(), resolvedZone.getName());
+      if (zone == null) {
+        log.debug("Envoy disconnected from zone that does not exist anymore {}", resolvedZone);
+        retrievePollerTimeoutErrors.increment();
+        pollerTimeout = NULL_ZONE_POLLER_TIMEOUT;
+      } else {
+        pollerTimeout = zone.getPollerTimeout();
+      }
     } catch (IllegalArgumentException e) {
       log.warn("Call to get poller timeout by zone name failed; using fallback timeout", e);
       retrievePollerTimeoutErrors.increment();
