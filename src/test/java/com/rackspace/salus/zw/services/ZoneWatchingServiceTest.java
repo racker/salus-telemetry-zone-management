@@ -334,6 +334,47 @@ public class ZoneWatchingServiceTest {
   }
 
   @Test
+  public void testHandleActiveEnvoyDisconnection_zoneNoLongerExists() throws Exception {
+    KafkaTopicProperties topicProperties = new KafkaTopicProperties();
+    topicProperties.setZones("test.zones.json");
+    final ZoneWatchingService zoneWatchingService = new ZoneWatchingService(
+        zoneStorage, kafkaTemplate, meterRegistry, topicProperties, zoneApi, etcdWatchConnector);
+
+    String zoneName = ResolvedZone.PUBLIC_PREFIX + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
+    String resourceId = RandomStringUtils.randomAlphanumeric(10);
+    String envoyId = RandomStringUtils.randomAlphanumeric(10);
+    long timeout = new Random().nextInt(1000) + 30L;
+
+    final ResolvedZone zone = ResolvedZone.createPublicZone(zoneName);
+
+    when(zoneApi.getByZoneName(nullable(String.class), anyString()))
+        .thenReturn(null);
+
+    final long leaseId = grantLease(timeout);
+
+    when(envoyLeaseTracking.grant(anyString(), anyLong()))
+        .thenReturn(CompletableFuture.completedFuture(leaseId));
+
+    zoneWatchingService.handleActiveEnvoyDisconnection(zone, resourceId, envoyId);
+
+    String expiringKey = new String(EtcdUtils.buildKey(Keys.FMT_ZONE_EXPIRING,
+        zone.getTenantForKey(),
+        zone.getZoneNameForKey(),
+        resourceId).getBytes());
+
+    GetResponse resp = verifyEtcdKeyExists(expiringKey, envoyId);
+
+    long foundLeaseId = resp.getKvs().get(0).getLease();
+
+    long ttl = client.getLeaseClient().timeToLive(foundLeaseId, LeaseOption.DEFAULT).get().getGrantedTTL();
+    assertThat(ttl, equalTo(timeout));
+
+    verify(zoneApi).getByZoneName(null, zoneName);
+
+    verify(zoneStorage).createExpiringEntry(zone, resourceId, envoyId, ZoneWatchingService.NULL_ZONE_POLLER_TIMEOUT);
+  }
+
+  @Test
   public void testHandleExpiredEnvoy() throws Exception {
     KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     topicProperties.setZones("test.zones.json");
