@@ -16,7 +16,7 @@
 
 package com.rackspace.salus.zw.config;
 
-import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -27,6 +27,6 @@ import org.springframework.validation.annotation.Validated;
 @Data
 @Validated
 public class ServicesProperties {
-    @NotEmpty
+    @NotBlank
     String monitorManagementUrl;
 }
