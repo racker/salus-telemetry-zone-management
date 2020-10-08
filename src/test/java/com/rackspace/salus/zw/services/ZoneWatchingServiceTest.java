@@ -44,10 +44,10 @@ import com.rackspace.salus.telemetry.etcd.types.ResolvedZone;
 import com.rackspace.salus.telemetry.messaging.ExpiredResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.NewResourceZoneEvent;
 import com.rackspace.salus.telemetry.messaging.ReattachedResourceZoneEvent;
+import com.rackspace.salus.zw.etcd.EtcdClusterResource;
 import io.etcd.jetcd.Client;
 import io.etcd.jetcd.Watch.Watcher;
 import io.etcd.jetcd.kv.GetResponse;
-import io.etcd.jetcd.launcher.junit.EtcdClusterResource;
 import io.etcd.jetcd.lease.LeaseGrantResponse;
 import io.etcd.jetcd.options.LeaseOption;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -99,7 +99,7 @@ public class ZoneWatchingServiceTest {
   @Before
   public void setUp() {
     client = io.etcd.jetcd.Client.builder().endpoints(
-        etcd.cluster().getClientEndpoints()
+        etcd.getClientEndpoints()
     ).build();
 
     zoneStorage = spy(new ZoneStorage(client, envoyLeaseTracking));
